@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="pandoc">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <link rel="stylesheet" href="pandoc.css">
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+  <!-- <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      jax: ["input/TeX", "output/HTML-CSS"],
+      MathML: {
+        extensions: ["content-mathml.js"]
+      },
+      "HTML-CSS": { webFont: "Neo-Euler" }
+    });
+  </script> -->
+</head>
+<body>
+<h1 id="writing-a-concatenative-programming-language-introduction">Writing a Concatenative Programming Language: Introduction</h1>
+<p>Yes, this is a yet another “write you a language”. But this one is a little bit different. First, the language I'm going to implement is rather different from languages you used to see in such tutorials. Second, I have little experience in creating programming languages, so a lot of things will be new to me as well.</p>
+<h2 id="philosophy">Philosophy</h2>
+<p>What's the point in doing the thing everybody else is doing? What's the point in solving a problem someone else already have solved? Guides show you how to make a yet another Haskell or Python, but if you like these languages so much why don't you just use existing implementations?</p>
+<p>I do not like Python. And I always seeked for something that could make programming less annoying. The language I'd like to use doesn't exist, and probably will never exist. But a more pleasant language, in fact, could.</p>
+<p>But the language will not write itself. Also, nobody will write such a language: most people prefer to do things everybody else does, and anyway nobody cares about things I care about.</p>
+<p>So I build a toy language and hope it will grow into something more useful.</p>
+<h2 id="freedom-from-variables">Freedom from variables</h2>
+<p>There's more than one way to do it. The should be a way to do it without using any variables.</p>
+<p>Most programming languages are extremely bad at programming without variables. For example, in C it is usually just impossible. In Haskell you have to use kludges like <code>(.).(.)</code> and end with unreadable code. In APL and J you end with character soup.</p>
+<p>But in some languages, programming without variable can result into concise and clean code. Such languages are known as <a href="https://en.wikipedia.org/wiki/Concatenative_programming_language">concatenative</a>.</p>
+<p>For example, in <a href="http://factorcode.org/">Factor</a> you can write something like this:</p>
+<pre class="factor"><code>&quot;http://factorcode.org&quot; http-get nip string&gt;xml
+&quot;a&quot; deep-tags-named
+[ &quot;href&quot; attr ] map
+[ print ] each</code></pre>
+<p>Clean <a href="http://concatenative.org/wiki/view/Pipeline%20style">pipeline-like</a> style.</p>
+<p>But concatenative are not perfect either. As shown in <a href="https://evincarofautumn.blogspot.com/2012/02/why-concatenative-programming-matters.html">Why Concatenative Programming Matters</a>, a simple expression <code>f(x, y, z) = x^2 + y^2 - abs(y)</code> becomes</p>
+<p><code>drop dup dup × swap abs rot3 dup × swap − +</code></p>
+<p>or</p>
+<p><code>drop [square] [abs] bi − [square] dip +</code></p>
+<p>But why can't you just write <code>drop dup (^2) + (^2) - abs</code> instead?</p>
+<p>In Conc, the language I'm going to implement, you can do that. Also, in Conc you can do things you can't do in other languages, like pattern matching without variables. This is achieved with a very simple extention of the concatenative model.</p>
+<h2 id="motivation">Motivation</h2>
+<p>Now you probably have a one big question.</p>
+<p><img src="https://www.linux.org.ru/images/16134/original.jpg" alt="Why" title="Why" /></p>
+<p>A good question indeed. Well, reasons are many. I'll show some though.</p>
+<p>Suppose, you have some kind of programming notebook, like Jupyter Notebook. In there, you write expressions in a frame to get results below.</p>
+<p>So you can type</p>
+<pre><code>1200.0 * (3.0/2.0 log2)</code></pre>
+<p>and get</p>
+<pre><code>701.9550008653874</code></pre>
+<p>(a pure perfect fifth in <a href="https://en.wikipedia.org/wiki/Cent_(music)">cents</a>). Suppose, you want see a chain of pure fifths. Then you write</p>
+<pre><code>1200.0 * (3.0/2.0 log2) -&gt; fifth
+
+1..inf {* fifth} map</code></pre>
+<pre><code>[701.9550008653874, 1403.9100017307749, ...]</code></pre>
+<p>How many pure fifths you need to approximate an octave (using octave equivalence)? It isn't hard to find out:</p>
+<pre><code>1200.0 * (3.0/2.0 log2) -&gt; fifth
+
+1..inf {* fifth} map
+{(round `mod` 1200) &lt; 10} take_while</code></pre>
+<p>(there should be a chain of 53 fifths)</p>
+<p>You may consider a tuning made from this chain</p>
+<pre><code>1200.0 * (3.0/2.0 log2) -&gt; fifth
+
+1..inf {* fifth} map
+{(round `mod` 1200) &lt; 10} take_while
+sort</code></pre>
+<p>Maybe it has a great approximation of a pure major third as well?</p>
+<pre><code>1200.0 * (3.0/2.0 log2) -&gt; fifth
+
+1..inf {* fifth} map
+{(round `mod` 1200) &lt; 10} take_while
+sort
+enumerate {second (id - 386 abs) &lt; 5} find</code></pre>
+<p>Now you can see a very nice feature of concatenative languages: they are good for interactive coding. There's no need to make unnecessary variables. There's no need to put everthing in dozens of parentheses or write code backwards. You just add more code to get new results.</p>
+<p>Everything is an expression. Every expression is a function. The code is concise yet readable. There's no special syntax and the basic syntax is very simple and consistent.</p>
+<p>Also, Conc functions are pure. The programming notebook could execute the code every time you move to a new line. It could memoize results to avoid expensive computations. It could use hot swapping technique, like <a href="http://elm-lang.org/blog/interactive-programming">in Elm</a>, allowing you to modify your program while it's running.</p>
+<p>The second reason to create a new language is because the concatenative notation makes some things cleaner. Consider the famous Functor and Monad rules:</p>
+<pre><code>fmap id      = id
+fmap (p . q) = (fmap p) . (fmap q)
+
+return a &gt;&gt;= k                  =  k a
+m        &gt;&gt;= return             =  m
+m        &gt;&gt;= (\x -&gt; k x &gt;&gt;= h)  =  (m &gt;&gt;= k) &gt;&gt;= h</code></pre>
+<p>In Conc they become:</p>
+<pre><code>{id} map  ≡ id
+{f g} map ≡ {f} map {g} map
+
+return &gt;&gt;= {k}   ≡ k
+&gt;&gt;= {return}     ≡ id
+&gt;&gt;= {k &gt;&gt;= {h}}  ≡ (&gt;&gt;= {k}) &gt;&gt;= {h}</code></pre>
+<p>Not only Conc version is shorter, it also allows you to <em>see</em> why the third Monad rule is called “associativity”.</p>
+<p>By the way, the concatenative style plays nicely with an effect system:</p>
+<pre><code>name_do : -&gt; +IO
+name_do =
+    &quot;What is your first name? &quot; print
+    get_line -&gt; first
+    &quot;And your last name? &quot; print
+    get_line -&gt; last
+
+    first ++ &quot; &quot; ++ last
+    &quot;Pleased to meet you, &quot; ++ id ++ &quot;!&quot; print_ln</code></pre>
+<p>And affine types:</p>
+<pre><code>Array.new
+1 push
+2 push
+3 push
+id !! 1
+⇒ Array 2</code></pre>
+<p>A yet another reason to make a new language is to avoid this:</p>
+<p><img src="https://i.imgur.com/qYcGYgD.png" alt="Tuples in Scala" /></p>
+<p>It is much easier if you have <code>,</code> and functions that can return multiple values.</p>
+<p>A yet another reason is the associativity of concatenation. While <a href="https://www.haskell.org/arrows/syntax.html">arrows</a> in Haskell look nice with <em>two</em> outputs, I wonder how they play with <em>three</em> outputs.</p>
+<p>Consider a simple example:</p>
+<pre><code>f : a -&gt; b c
+g : a -&gt; b
+p : a b -&gt; c
+q : a -&gt; b</code></pre>
+<p>You can write:</p>
+<pre><code>f,g
+p,q</code></pre>
+<p>But you also can write:</p>
+<pre><code>f,g
+q,p</code></pre>
+<p>You can't reproduce this using only pairs, because</p>
+<pre><code>T[T[a, b], c] ≠ T[a, T[b, c]]</code></pre>
+<p>But in Conc <code>((a, b), c) ≡ (a, (b, c)) ≡ a, b, c</code>.</p>
+<h2 id="the-language">The language</h2>
+<pre><code>data a Maybe = a Some | None
+
+map : a Some (a -&gt; b) -&gt; b Some
+map (mb f -- mb) = case 2id:
+    Some,id -&gt; apply Some
+    None,_  -&gt; None
+
+fizzbuzz (n -- str) =
+    -&gt; n
+    case (n fizz),(n buzz):
+        True, False -&gt; &quot;Fizz&quot;
+        False, True -&gt; &quot;Buzz&quot;
+        True, True  -&gt; &quot;FizzBuzz&quot;
+        _, _        -&gt; n to_string
+    where
+        fizz = (3 mod) == 0
+        buzz = (5 mod) == 0
+
+main : -&gt; +IO
+main = 1 101 range {fizzbuzz println} each</code></pre>
+<p>Ok, I have to explain some things. The first thing you have to know, Conc is an algebra of two operations on functions. The first operation is <em>generalized composition</em>. It works like ordinary composition in concatenative languages:</p>
+<pre><code>add : Int Int -&gt; Int
+mul : Int Int -&gt; Int
+add mul : Int Int Int -&gt; Int
+
+2 3 5 add mul ⇒ 2 (3 5 add) mul ⇒ 2 8 mul ⇒ 16</code></pre>
+<p>The second operation is <em>parallel concatenation</em>:</p>
+<pre><code>add,mul : Int Int Int Int -&gt; Int
+
+2 2 3 3 add,mul ⇒ (2 2 add),(3 3 mul) ⇒ 4 9</code></pre>
+<p>Both operations are monoids:</p>
+<pre><code>( ) f ≡ f ( ) ≡ f
+( ),f ≡ f,( ) ≡ f
+
+(f g) h ≡ f (g h)
+(f,g),h ≡ f,(g,h)</code></pre>
+<p>Now notice that if <code>c</code> is a constant (a function that doesn't take any arguments) than composition is equvalent to concatenation:</p>
+<pre><code>f c ≡ f,c</code></pre>
+<p>Also, if output arity of <code>f</code> is lesser than input arity of <code>g</code>,</p>
+<pre><code>f g ≡ idN,f g</code></pre>
+<p>where N is the difference between arities.</p>
+<p>This implies that the generalized composition is probably too general. This leads us to the concept of the <em>canonical concatenative form</em>.</p>
+<p>Expression <code>e1 e2</code> is in CCF if both <code>e1</code> and <code>e2</code> are in CCF and the output arity or <code>e1</code> equals the input arity of <code>e2</code>.</p>
+<p>This is our old examples in CCF:</p>
+<pre><code>2,3,5 id,add mul
+2,2,3,3 add,mul</code></pre>
+<p>Now let's define an infix notation:</p>
+<pre><code>f `h` g ⇒ f,g h</code></pre>
+<p>This allows you to write expressions in a usual way:</p>
+<pre><code>2*2 + 3*3 ⇒ (2,2 (*)),(3,3 (*)) (+) ⇒ 4,9 + ⇒ 13</code></pre>
+<p>But it also allows you to write expression in an unusual way:</p>
+<pre><code>2 2 3 3 (*) + (*) ⇒ 2,2,3,3 (*),(*) (+) ⇒ ... ⇒ 13</code></pre>
+<p>It is also nice to have some sugar:</p>
+<pre><code>(`h` g) ⇒ idN,g h
+(f `h`) ⇒ f,idM h</code></pre>
+<p>Where <code>N = max(arity_in(h) - arity_out(g), 0)</code>.</p>
+<p>Now the meaning of <code>drop dup (^2) + (^2) - abs</code> should be crystal clear to you:</p>
+<pre><code>x y z drop dup (^2) + (^2) - abs ⇒
+x,y,y (^2) + (^2) - abs ⇒
+((x,2 (^)),(y,2 (^)) (+)),(y abs) (-) ⇒ ...</code></pre>
+<p>Visually it is more like</p>
+<pre><code>x,y,y (^2) + (^2) - abs ⇒ (x^2) + (y^2) - (y abs)</code></pre>
+<p>Simple and intuitive.</p>
+<h3 id="concatenative-pattern-matching">Concatenative pattern matching</h3>
+<p>Operation <code>,</code> is not only about writing nice expressions. It also allows to introduce a concatenative version of pattern matching without variables.</p>
+<p>Consider an expression:</p>
+<pre><code>case foo of
+    Some a -&gt; ...
+    None   -&gt; ...</code></pre>
+<p>What does <code>Some a -&gt;</code> mean? Well, assuming that <code>foo = Some bar</code>, it defines <code>a = bar</code> and evaluates expression after <code>-&gt;</code>. <code>Some</code> is a function that constructs a value, and pattern matching <em>inverts</em> this function.</p>
+<p>In concatenative world, <code>Some bar</code> becomes <code>bar Some</code> (postfix notation!). If there'd be <code>unSome: a Maybe -&gt; a</code>, you could write</p>
+<pre><code>bar Some unSome ⇒ bar</code></pre>
+<p>But <code>unSome</code> doesn't exist. But what if we reproduce <code>unSome</code> behaviour in the place where it makes sense?</p>
+<pre><code>case (bar Some):
+    Some -&gt; ⇒ bar
+    None -&gt; ...</code></pre>
+<p>That's basically the essence of concatenative pattern matching. Together with <code>id</code>, type constructors and composition form a <a href="https://en.wikipedia.org/wiki/Cancellation_property">right-cancellative monoid</a>.</p>
+<p>What does it have to do with <code>,</code>? Well, consider an another example:</p>
+<pre><code>case foo of
+    Cons(Some(x), xs) -&gt; ...</code></pre>
+<p>How to express this in the concatenative pattern matching? Let's rewrite <code>Cons(Some(x), xs)</code> in concatenative:</p>
+<pre><code>(x Some),xs Cons ⇒ x,xs Some,id Cons</code></pre>
+<p>The <code>case</code> statement becomes:</p>
+<pre><code>case foo:
+    Some,id Cons -&gt; ⇒ x,xs</code></pre>
+<p>So <code>,</code> allow us to do advanced pattern matching without any variables.</p>
+<h3 id="miscellaneous">Miscellaneous</h3>
+<h4 id="cross-cutting-statements">Cross-cutting statements</h4>
+<p>Consider a branching statement:</p>
+<pre><code>if foo:
+    bar
+else:
+    baz</code></pre>
+<p>If <code>foo</code> is a constant, the meaning of this statement is clear. But that if <code>foo</code> is a function?</p>
+<p>In Conc, statement are cross-cutting. That means that the function inside uses values outside:</p>
+<pre><code>a b if (==):
+    ...
+⇒
+if a == b:
+    ...</code></pre>
+<h4 id="stack-effect-comments">Stack effect comments</h4>
+<p>Concatenative notation has many advantages. But it also have some drawbacks.</p>
+<pre><code>magic = abra cadabra</code></pre>
+<p>What does this function do?</p>
+<p>Raw types are not helpful either:</p>
+<pre><code>mysterious: Int Int -&gt; Int</code></pre>
+<p>Clearly, we need something else.</p>
+<p>In Forth, people use <em>stack effect comments</em> to show what a word does:</p>
+<pre><code>: SQUARED   ( n -- nsquared )     DUP *  ;</code></pre>
+<p>Conc has a similar thing too:</p>
+<pre><code>map (mb f -- mb) = ...</code></pre>
+<p>But unlike Forth, <code>(mb f -- mb)</code> is more than just a comment. The compiler can use it to check the arity, and error if the arity of the stack effect doesn't match the arity of the function.</p>
+<h2 id="a-puzzle">A puzzle</h2>
+<p>Enough about Conc, let's talk about something more abstract. Specifically: concatenative combinators.</p>
+<p><a href="http://tunes.org/~iepos/joy.html">The Theory of Concatenative Combinators</a> gives a good introduction into the subject. My set of combinators is a little bit different though:</p>
+<pre><code>  A dup  ⇒ A A
+A B swap ⇒ B A
+A B drop ⇒ A
+
+{f} {g} comp  ⇒ {f g}
+  … {f} apply ⇒ … f</code></pre>
+<p>This surely isn't a minimal set. But it is a very convenient one. Each combinator correspondes to some fundamental concept.</p>
+<p><code>dup</code>, <code>drop</code> and <code>swap</code> correspond to structural rules. Indeed:</p>
+<ul>
+<li>Contraction rule allows to use a variable twice. And <code>dup</code> allows to use a value twice.</li>
+<li>Weaking rule allows to not use a variable. And <code>drop</code> allows to not use a value.</li>
+<li>Exchange rule allows to use variables in a different order. And <code>swap</code> allows to use values in a different order.</li>
+</ul>
+<p><code>comp</code> and <code>apply</code> are, of course, a composition and an application.</p>
+<p>What can you do with this set of combinators? Well, a lot of things. Let's build the famous fixed-point combinator <code>y</code>.</p>
+<p>By definition:</p>
+<pre><code>{f} y ⇒ {f} y f ⇒ {f} y f f ⇒ ...</code></pre>
+<p>Let's try <code>rec = dup apply</code>:</p>
+<pre><code>{f} rec ⇒ {f} {f} apply ⇒ {f} f</code></pre>
+<p>Not very interesting. But:</p>
+<pre><code>{rec} rec ⇒ {rec} rec ⇒ ...</code></pre>
+<p>It recurses. And if we add some <code>f</code>:</p>
+<pre><code>{rec f} rec ⇒ {rec f} rec f ⇒ {rec f} rec f f ⇒ ...</code></pre>
+<p>Here we go. Now we only have to construct <code>{rec f}</code> from <code>{f}</code>:</p>
+<pre><code>{f} {rec} swap comp ⇒ {rec f}</code></pre>
+<p>So:</p>
+<pre><code>y = {dup apply} swap comp dup apply</code></pre>
+<p>Nice.</p>
+<p>But remember that Conc is an algebra of <em>two</em> operations. This suggests an additional combinator:</p>
+<pre><code>{f} {g} conc ⇒ {f,g} conc</code></pre>
+<p>But this immediately leads to a question...</p>
+<p><strong>Problem #1:</strong> How do you define <code>,</code> in an untyped context?</p>
+<p>Suppose you defined it somehow. Now let <code>f: A B → C</code> be a function that takes two arguments and return only one. You can nest it:</p>
+<pre><code>f,f f : A B C D → E
+f,f,f,f f,f f : A … H → K</code></pre>
+<p>By analogy, let <code>g: A → B C</code>:</p>
+<pre><code>g g,g : A → B C D E
+g g,g g,g,g,g → ...</code></pre>
+<p><strong>Problem #2</strong>: define <code>2y</code> and <code>y2</code> such as</p>
+<p><code>{f} 2y ⇒ {f,f} 2y f ⇒ {f,f,f,f} 2y f,f f ⇒ ...</code></p>
+<p>and</p>
+<p><code>{g} y2 ⇒ g {g,g} y2 ⇒ g g,g {g,g,g,g} y2 ⇒ ...</code></p>
+<h2 id="follow-up">Follow up</h2>
+<p>In the next post I'll describe and implement the Conc parser.</p>
+</body>
+</html>

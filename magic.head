@@ -1,0 +1,9 @@
+<!-- <script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    jax: ["input/TeX", "output/HTML-CSS"],
+    MathML: {
+      extensions: ["content-mathml.js"]
+    },
+    "HTML-CSS": { webFont: "Neo-Euler" }
+  });
+</script> -->
