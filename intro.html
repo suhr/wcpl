@@ -158,7 +158,7 @@ add mul : Int Int Int -&gt; Int
 
 2 3 5 add mul ⇒ 2 (3 5 add) mul ⇒ 2 8 mul ⇒ 16</code></pre>
 <p>The second operation is <em>parallel concatenation</em>:</p>
-<pre><code>add,mul : Int Int Int Int -&gt; Int
+<pre><code>add,mul : Int Int Int Int -&gt; Int Int
 
 2 2 3 3 add,mul ⇒ (2 2 add),(3 3 mul) ⇒ 4 9</code></pre>
 <p>Both operations are monoids:</p>

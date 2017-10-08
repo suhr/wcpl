@@ -241,7 +241,7 @@ add mul : Int Int Int -> Int
 The second operation is *parallel concatenation*:
 
 ```
-add,mul : Int Int Int Int -> Int
+add,mul : Int Int Int Int -> Int Int
 
 2 2 3 3 add,mul ⇒ (2 2 add),(3 3 mul) ⇒ 4 9
 ```
