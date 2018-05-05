@@ -236,21 +236,47 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <a class="sourceLine" id="cb4-34" data-line-number="34">    <span class="kw">;</span></a>
 <a class="sourceLine" id="cb4-35" data-line-number="35">        replace(<span class="dt">Y</span><span class="kw">,</span> <span class="dt">S</span><span class="kw">,</span> <span class="dt">X</span>)<span class="kw">.</span></a></code></pre></div>
 <p>Now we can write the typechecking rules:</p>
-<pre><code>ty_chk(ty(E, T)) :- primal_ty(E, T).
-
-% Rule for composition
-ty_chk( ty(comp(E1, E2), F) ) :-
-    ty_chk( ty(E1, F1) ),
-    ty_chk( ty(E2, F2) ),
-    unify_comp(F, F1, F2).
-
-% Rule for concatenation
-ty_chk( ty([ ], fn([ ], [ ])) ).
-ty_chk( ty([E1 | E2], F) ) :-
-    ty_chk( ty(E1, fn(A, B)) ),
-    ty_chk( ty(E2, fn(X, Y)) ),
-    alpha_conc(F, fn(A, B), fn(X, Y)).</code></pre>
+<div class="sourceCode" id="cb5"><pre class="sourceCode prolog"><code class="sourceCode prolog"><a class="sourceLine" id="cb5-1" data-line-number="1">ty_chk(ty(<span class="dt">E</span><span class="kw">,</span> <span class="dt">T</span>)) <span class="kw">:-</span> primal_ty(<span class="dt">E</span><span class="kw">,</span> <span class="dt">T</span>)<span class="kw">.</span></a>
+<a class="sourceLine" id="cb5-2" data-line-number="2"></a>
+<a class="sourceLine" id="cb5-3" data-line-number="3"><span class="co">% Rule for composition</span></a>
+<a class="sourceLine" id="cb5-4" data-line-number="4">ty_chk( ty(comp(<span class="dt">E1</span><span class="kw">,</span> <span class="dt">E2</span>)<span class="kw">,</span> <span class="dt">F</span>) ) <span class="kw">:-</span></a>
+<a class="sourceLine" id="cb5-5" data-line-number="5">    ty_chk( ty(<span class="dt">E1</span><span class="kw">,</span> <span class="dt">F1</span>) )<span class="kw">,</span></a>
+<a class="sourceLine" id="cb5-6" data-line-number="6">    ty_chk( ty(<span class="dt">E2</span><span class="kw">,</span> <span class="dt">F2</span>) )<span class="kw">,</span></a>
+<a class="sourceLine" id="cb5-7" data-line-number="7">    unify_comp(<span class="dt">F</span><span class="kw">,</span> <span class="dt">F1</span><span class="kw">,</span> <span class="dt">F2</span>)<span class="kw">.</span></a>
+<a class="sourceLine" id="cb5-8" data-line-number="8"></a>
+<a class="sourceLine" id="cb5-9" data-line-number="9"><span class="co">% Rule for concatenation</span></a>
+<a class="sourceLine" id="cb5-10" data-line-number="10">ty_chk( ty([ ]<span class="kw">,</span> fn([ ]<span class="kw">,</span> [ ])) )<span class="kw">.</span></a>
+<a class="sourceLine" id="cb5-11" data-line-number="11">ty_chk( ty([<span class="dt">E1</span> <span class="fu">|</span> <span class="dt">E2</span>]<span class="kw">,</span> <span class="dt">F</span>) ) <span class="kw">:-</span></a>
+<a class="sourceLine" id="cb5-12" data-line-number="12">    ty_chk( ty(<span class="dt">E1</span><span class="kw">,</span> fn(<span class="dt">A</span><span class="kw">,</span> <span class="dt">B</span>)) )<span class="kw">,</span></a>
+<a class="sourceLine" id="cb5-13" data-line-number="13">    ty_chk( ty(<span class="dt">E2</span><span class="kw">,</span> fn(<span class="dt">X</span><span class="kw">,</span> <span class="dt">Y</span>)) )<span class="kw">,</span></a>
+<a class="sourceLine" id="cb5-14" data-line-number="14">    alpha_conc(<span class="dt">F</span><span class="kw">,</span> fn(<span class="dt">A</span><span class="kw">,</span> <span class="dt">B</span>)<span class="kw">,</span> fn(<span class="dt">X</span><span class="kw">,</span> <span class="dt">Y</span>))<span class="kw">.</span></a></code></pre></div>
 <h1>Tier 1: infering the unknown</h1>
+<p>Sometimes you cannot to infer the type of an expression immediately. For example, consider this code:</p>
+<pre><code>fact (n ~ fact) =
+    if dup &lt;= 1:
+        drop 1
+    else:
+        dup id * (id - 1 fact)</code></pre>
+<p>Here, function <code>fact</code> refers to itself, so inferring its type recursively will never terminate.</p>
+<p>Instead of trying to infer the type, let's assume that</p>
+<p><span class="math display">\[\mathtt{fact} : α → β\]</span></p>
+<p>From <code>id - 1</code>, we can know, that <span class="math inline">\(α = \mathrm{Integer}\)</span>. From <code>drop 1</code>, we know that <span class="math inline">\(β = \mathrm{Integer}\)</span>. Thus, we know that</p>
+<p><span class="math display">\[\mathtt{fact} : \mathrm{Integer} → \mathrm{Integer}\]</span></p>
+<p>Formally, this is the algorithm:</p>
+<ol>
+<li>Assume that <span class="math inline">\(\mathtt{f} : χ_1 → χ_2\)</span>, there <span class="math inline">\(χ_n\)</span> is a <em>hole</em>. In Prolog, it is written as <code>hole(N)</code></li>
+<li>The typechecker returns not only types but also an unification list</li>
+<li>Propagate holes:
+<ul>
+<li>When unifying <span class="math inline">\(χ_n\)</span> and <span class="math inline">\(χ_m\)</span>, add <span class="math inline">\(χ_n = χ_m\)</span> to the unification list</li>
+<li>When unifying a hole with a type variable, replace the type variable with the hole</li>
+<li>When unifying <span class="math inline">\(χ_n\)</span> with a type <span class="math inline">\(η\)</span>, add <span class="math inline">\(χ_n = η\)</span> to the unification list, replace the <span class="math inline">\(χ_n\)</span> with <span class="math inline">\(η\)</span></li>
+</ul></li>
+</ol>
+<p>The implementation of this algorithm is straightforward.</p>
+<h2>Tier 2: typed generalized composition</h2>
+<p>TODO</p>
+<h2>Tier 3: lol, generics</h2>
 <p>TODO</p>
 </body>
 </html>

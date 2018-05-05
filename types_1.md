@@ -189,7 +189,7 @@ replace(Y, [E|S], X) :-
 
 Now we can write the typechecking rules:
 
-```
+```prolog
 ty_chk(ty(E, T)) :- primal_ty(E, T).
 
 % Rule for composition
@@ -207,5 +207,42 @@ ty_chk( ty([E1 | E2], F) ) :-
 ```
 
 # Tier 1: infering the unknown
+
+Sometimes you cannot to infer the type of an expression immediately. For example, consider this code:
+
+```
+fact (n ~ fact) =
+    if dup <= 1:
+        drop 1
+    else:
+        dup id * (id - 1 fact)
+```
+
+Here, function `fact` refers to itself, so inferring its type recursively will never terminate.
+
+Instead of trying to infer the type, let's assume that
+
+$$\mathtt{fact} : α → β$$
+
+From `id - 1`, we can know, that $α = \mathrm{Integer}$. From `drop 1`, we know that $β = \mathrm{Integer}$. Thus, we know that
+
+$$\mathtt{fact} : \mathrm{Integer} → \mathrm{Integer}$$
+
+Formally, this is the algorithm:
+
+1. Assume that $\mathtt{f} : χ_1 → χ_2$, there $χ_n$ is a *hole*. In Prolog, it is written as `hole(N)`
+2. The typechecker returns not only types but also an unification list
+3. Propagate holes:
+	- When unifying $χ_n$ and $χ_m$, add $χ_n = χ_m$ to the unification list
+	- When unifying a hole with a type variable, replace the type variable with the hole
+	- When unifying $χ_n$ with a type $η$, add $χ_n = η$ to the unification list, replace the $χ_n$ with $η$
+
+The implementation of this algorithm is straightforward.
+
+## Tier 2: typed generalized composition
+
+TODO
+
+## Tier 3: lol, generics
 
 TODO
